@@ -12,6 +12,7 @@ import {
 } from '@/lib/video-prefetcher';
 import { loadCacheSettings } from '@/lib/video-cache';
 import { formatTime } from '@/lib/utils';
+import { PROXY_BASE, isProxiedUri } from '@/lib/m3u8';
 import { prefersTouchPointer } from '@/lib/touch-pointer';
 import {
   ART_DEFAULT_CONTROL_HIDE_MS,
@@ -269,11 +270,11 @@ export function PlayerShell({
           // （同源 cookie 鉴权，规避 CORS/防盗链/分片被拒）
           if (
             allowProxyFallback &&
-            !mediaUrl.startsWith('/api/proxy') &&
+            !isProxiedUri(mediaUrl) &&
             (decision.attempt >= 2 || data.details === 'manifestLoadError')
           ) {
             showHint('直连失败，改用代理重试...');
-            setupHls(video, `/api/proxy?url=${encodeURIComponent(mediaUrl)}`, false);
+            setupHls(video, `${PROXY_BASE}${encodeURIComponent(mediaUrl)}`, false);
             return;
           }
           showHint(`${decision.reason}（第 ${decision.attempt} 次）...`);
