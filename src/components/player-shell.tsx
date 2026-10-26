@@ -20,6 +20,9 @@ import {
   TOUCH_CONTROL_HIDE_MS,
 } from '@/lib/control-hide';
 
+/** 是否 HLS（m3u8）地址：true 走 hls.js，false（mp4 直链 / 本地 file://）走原生 <video> */
+const isM3u8Url = (u: string) => /\.m3u8($|\?)/i.test(u) || u.includes('mpegurl');
+
 /**
  * 播放器外壳：ArtPlayer + hls.js（旧版 player.js 的 React 化）。
  * 保留：广告分片过滤、自动连播回调、进度回调、快捷键、移动端长按倍速、错误恢复。
@@ -318,13 +321,23 @@ export function PlayerShell({
     setShowPoster(true);
     const art = artRef.current;
     if (!art) return;
-    setupHls(art.video, targetUrl, true);
+    if (isM3u8Url(targetUrl)) {
+      setupHls(art.video, targetUrl, true);
+    } else {
+      // 直链 mp4 / 本地文件：直接切 video.src，不走 hls.js
+      currentMediaUrlRef.current = targetUrl;
+      art.video.src = targetUrl;
+      art.video.load();
+      void art.video.play().catch(() => {});
+    }
   };
 
   // —— 创建播放器（仅一次，挂载即创建） ——
   useEffect(() => {
     if (!containerRef.current || !propsRef.current.url) return;
     const initialUrl = propsRef.current.url;
+    const useHlsType = isM3u8Url(initialUrl);
+    const isLocalFile = initialUrl.startsWith('file:');
     // ArtPlayer 默认 3 秒才隐藏控制栏；桌面失去鼠标悬停后缩短为 0.8 秒。
     // 触屏没有 hover，自动隐藏会让按钮来不及点（issue #937）：改为常驻，
     // 由「点按视频 toggle」收起。CONTROL_HIDE_TIME 是 static，创建后修改立即生效。
@@ -344,7 +357,7 @@ export function PlayerShell({
     const art = new Artplayer({
       container: containerRef.current,
       url: initialUrl,
-      type: 'm3u8',
+      ...(useHlsType ? { type: 'm3u8' } : {}),
       volume: 0.8,
       autoplay: true,
       pip: true,
@@ -363,7 +376,7 @@ export function PlayerShell({
       hotkey: false,
       theme: '#2563eb',
       lang: navigator.language.toLowerCase().startsWith('zh') ? 'zh-cn' : 'en',
-      moreVideoAttr: { crossOrigin: 'anonymous', playsInline: true },
+      moreVideoAttr: { playsInline: true, ...(isLocalFile ? {} : { crossOrigin: 'anonymous' }) },
       // 上/下集放在播放键右侧：换集是看剧最高频的动作，不该让用户滚回页面下方找按钮
       controls: [
         {
@@ -434,7 +447,14 @@ export function PlayerShell({
       if (!playbackStartedRef.current && !videoErrorRetryUsedRef.current) {
         videoErrorRetryUsedRef.current = true;
         showHint('播放异常，正在重试...');
-        setupHls(art.video, currentMediaUrlRef.current, true);
+        const errUrl = currentMediaUrlRef.current;
+        if (isM3u8Url(errUrl)) {
+          setupHls(art.video, errUrl, true);
+        } else {
+          art.video.src = errUrl;
+          art.video.load();
+          void art.video.play().catch(() => {});
+        }
         return;
       }
       setError('视频播放失败，请尝试其他视频源');

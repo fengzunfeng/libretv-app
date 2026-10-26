@@ -119,6 +119,34 @@ function HomeContent() {
   // 最近搜索改为搜索框下拉（聚焦展开、按输入过滤），不再常驻首屏
   const searchHistory = useSearchHistory(input);
 
+  // 本地视频：唤起安卓壳文件选择器（JS 桥），选中后跳转播放页
+  const pickLocalVideo = () => {
+    const bridge = (window as unknown as {
+      LibreTV?: { pickLocalVideo?: () => void; pollLocalVideoResult?: () => string | null };
+    }).LibreTV;
+    if (!bridge?.pickLocalVideo) {
+      toast('该功能仅安卓独立版支持', 'info');
+      return;
+    }
+    bridge.pickLocalVideo();
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      try {
+        const res = bridge.pollLocalVideoResult?.();
+        if (res === undefined || res === null) {
+          if (Date.now() - started > 120_000) window.clearInterval(timer);
+          return;
+        }
+        window.clearInterval(timer);
+        if (res === '') { toast('已取消选择', 'info'); return; }
+        if (res.startsWith('error:')) { toast(res, 'error'); return; }
+        router.push(`/watch?local=${encodeURIComponent(res)}`);
+      } catch {
+        window.clearInterval(timer);
+      }
+    }, 400);
+  };
+
   const runSearch = (q: string) => {
     const query = q.trim().slice(0, 100);
     if (!query) {
@@ -278,6 +306,20 @@ function HomeContent() {
               />
             )}
           </div>
+
+            {/* 本地视频（仅安卓独立版显示：检测 JS 桥存在） */}
+            {typeof window !== 'undefined' && (window as unknown as { LibreTV?: object }).LibreTV && (
+              <div className="mt-3 flex justify-center">
+                <button
+                  type="button"
+                  className="btn-ghost btn-sm flex items-center gap-1.5"
+                  onClick={pickLocalVideo}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5v14l11-7z" /></svg>
+                  播放本地视频
+                </button>
+              </div>
+            )}
         </section>
 
         {/* 搜索结果 */}

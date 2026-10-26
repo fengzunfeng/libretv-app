@@ -54,6 +54,9 @@ function WatchContent() {
   const sourceKey = searchParams.get('source') || '';
   const vodId = searchParams.get('id') || '';
   const directUrl = searchParams.get('url') || '';
+  // 本地视频模式：/watch?local=<encodeURIComponent(file:// 路径)>，由安卓壳 JS 桥选择文件后跳转
+  const localParam = searchParams.get('local') || '';
+  const localPath = localParam ? decodeURIComponent(localParam) : '';
   const titleParam = searchParams.get('title') || '';
   const indexParam = parseInt(searchParams.get('index') || '0', 10) || 0;
 
@@ -65,25 +68,27 @@ function WatchContent() {
     detail: searchParams.get('detail') || undefined,
   });
 
-  // 详情查询：无 id（纯直连链接分享）时跳过
+  // 详情查询：无 id（纯直连链接分享）时跳过；本地视频模式不查详情
   const detailQuery = useQuery({
     queryKey: ['detail', sourceKey, vodId, source?.url],
     queryFn: ({ signal }) => api.detail(vodId, source!, signal),
-    enabled: Boolean(source && vodId && verified),
+    enabled: Boolean(source && vodId && verified && !localPath),
     staleTime: 5 * 60_000,
   });
 
   const episodes = useMemo(() => detailQuery.data?.episodes ?? [], [detailQuery.data]);
-  const videoTitle = titleParam || detailQuery.data?.videoInfo?.title || '未知视频';
+  const localTitle = localPath ? (localPath.split('/').pop() || '本地视频') : '';
+  const videoTitle = localTitle || titleParam || detailQuery.data?.videoInfo?.title || '未知视频';
 
-  // 当前播放地址：优先取剧集列表中的当前集，其次直连 URL 参数
+  // 当前播放地址：本地视频优先，其次剧集列表当前集，最后直连 URL 参数
   const currentUrl = useMemo(() => {
+    if (localPath) return localPath;
     if (episodes.length > 0) {
       const idx = Math.min(Math.max(indexParam, 0), episodes.length - 1);
       return episodes[idx] || directUrl;
     }
     return directUrl;
-  }, [episodes, indexParam, directUrl]);
+  }, [localPath, episodes, indexParam, directUrl]);
 
   const currentIndex = useMemo(() => {
     if (episodes.length > 0) return Math.min(Math.max(indexParam, 0), episodes.length - 1);
@@ -173,7 +178,7 @@ function WatchContent() {
 
   const orderedEpisodes = reversed ? [...episodes].map((_, i) => episodes.length - 1 - i) : episodes.map((_, i) => i);
 
-  if (!verified) {
+  if (!verified && !localPath) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-faint text-sm">等待访问验证...</p>
@@ -181,7 +186,7 @@ function WatchContent() {
     );
   }
 
-  if (!source) {
+  if (!source && !localPath) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="text-center max-w-md">
@@ -204,36 +209,40 @@ function WatchContent() {
           <div className="min-w-0">
             <h1 className="text-sm font-medium text-content truncate">{videoTitle}</h1>
             <p className="text-xs text-faint">
-              {source.name}
+              {localPath ? '本地视频' : source?.name}
               {episodes.length > 0 && ` · 第 ${currentIndex + 1}/${episodes.length} 集`}
             </p>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <button
-              className="btn-ghost btn-sm"
-              onClick={() => {
-                if (!currentUrl) return;
-                enqueueDownload({
-                  url: currentUrl,
-                  // 多集才带集数后缀；单集影片（含电影）文件名就是纯标题
-                  title: `${videoTitle}${episodes.length > 1 ? ` 第${currentIndex + 1}集` : ''}`,
-                  format: 'MP4',
-                });
-                // 「已加入下载队列」由 DownloadManager 在真正入队后提示：
-                // 这里先提示的话，用户随后取消保存位置会出现「已加入→已取消」的矛盾
-              }}
-            >
-              下载本集
-            </button>
-            <button className="btn-ghost btn-sm" onClick={() => setSwitchOpen(true)}>
-              切换资源
-            </button>
+            {!localPath && (
+              <>
+                <button
+                  className="btn-ghost btn-sm"
+                  onClick={() => {
+                    if (!currentUrl) return;
+                    enqueueDownload({
+                      url: currentUrl,
+                      // 多集才带集数后缀；单集影片（含电影）文件名就是纯标题
+                      title: `${videoTitle}${episodes.length > 1 ? ` 第${currentIndex + 1}集` : ''}`,
+                      format: 'MP4',
+                    });
+                    // 「已加入下载队列」由 DownloadManager 在真正入队后提示：
+                    // 这里先提示的话，用户随后取消保存位置会出现「已加入→已取消」的矛盾
+                  }}
+                >
+                  下载本集
+                </button>
+                <button className="btn-ghost btn-sm" onClick={() => setSwitchOpen(true)}>
+                  切换资源
+                </button>
+              </>
+            )}
           </div>
         </div>
       </header>
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-4">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4">
+        <div className={cn('grid grid-cols-1 gap-4', !localPath && 'lg:grid-cols-[1fr_300px]')}>
           <div>
             <div className="aspect-video bg-black rounded-lg overflow-hidden">
               {currentUrl ? (
@@ -242,7 +251,7 @@ function WatchContent() {
                   title={videoTitle}
                   adFilter={store.adFilter}
                   autoplayNext={store.autoplayNext}
-                  episodeKey={`${sourceKey}:${vodId}:${currentIndex}`}
+                  episodeKey={localPath ? '' : `${sourceKey}:${vodId}:${currentIndex}`}
                   nextUrl={currentIndex + 1 < episodes.length ? episodes[currentIndex + 1] : undefined}
                   nextEpisodeKey={currentIndex + 1 < episodes.length ? `${sourceKey}:${vodId}:${currentIndex + 1}` : undefined}
                   getRestorePosition={getRestorePosition}
@@ -302,7 +311,8 @@ function WatchContent() {
             </div>
           </div>
 
-          {/* 剧集侧栏 */}
+          {/* 剧集侧栏（本地视频模式不显示） */}
+          {!localPath && (
           <aside className="bg-surface-raised rounded-lg p-3 h-fit">
             <div className="flex items-center justify-between gap-2 mb-2.5">
               <h2 className="text-sm font-semibold text-content">
@@ -346,6 +356,7 @@ function WatchContent() {
               快捷键：空格 播放/暂停 · ←/→ 快退/快进 5s · ↑/↓ 音量 · F 全屏 · Alt+←/→ 切换集数
             </p>
           </aside>
+          )}
         </div>
       </main>
 
