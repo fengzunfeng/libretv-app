@@ -1,0 +1,14 @@
+﻿STATE: {
+ "scripts": [
+  "http://127.0.0.1:8777/_next/static/chunks/4bd1b696-21f374d1156f834a.js",
+  "http://127.0.0.1:8777/_next/static/chunks/255-d4141a7f82b223fc.js",
+  "http://127.0.0.1:8777/_next/static/chunks/main-app-138cfb108be1df30.js",
+  "http://127.0.0.1:8777/_next/static/chunks/bc0902ee-21db931648078fe1.js",
+  "http://127.0.0.1:8777/_next/static/chunks/polyfills-42372ed130431b0a.js",
+  "http://127.0.0.1:8777/_next/static/chunks/webpack-0e2280cc9e6376c1.js"
+ ],
+ "bodyLen": 96,
+ "readyState": "complete",
+ "hasLibreTV": false
+}
+EVENTS (0):

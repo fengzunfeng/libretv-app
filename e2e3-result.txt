@@ -1,0 +1,20 @@
+﻿PASS | T1 首页渲染 | {"hasInput":true,"buttons":["搜索","电影周榜","国产剧周榜","海外剧周榜","国内综艺","海外综艺","百度热播剧"]}
+PASS | T2 搜索返回结果 | "直播\n关于\nLibreTV 视频搜索\n搜索\n播放本地视频\n“长津湖” 的搜索结果（3 部影片 · 8 条结果）\n4 源\n长津湖\n战争片\n2021\n\n正片\n\n4 个来源\n长津湖之水门桥\n剧情片\n2021\n\n正片\n\n360资源\n3 源\n长津湖之水门桥\n剧情片\n2022\n\n更新HD中字\n\n3 个来源\n\nLibreTV vstandalone-2.19.7 · AGPL-3.0 License"
+PASS | T2 无源失败 | ok
+PASS | T2 本地视频按钮(重渲染后) | hasLocalBtn=true
+FAIL | T3 详情弹窗打开 | "直播\n关于\nLibreTV 视频搜索\n搜索\n播放本地视频\n“长津湖” 的搜索结果（3 部影片 · 8 条结果）\n4 源\n长津湖\n战争片\n2021\n\n正片\n\n4 个来源\n\n选择来源\n\n探测中 0/4\n\n360资源\n正片\n百度资源\nHD中字\n非凡资源\nHD国语\n光速资源\n正片\n长津湖之水门桥\n剧情片\n2021\n\n正片\n\n360资源\n3 源\n长津湖之水门桥\n剧情片"
+FAIL | T3 详情含分集 | []
+node : file:///C:/LibreTV/cdp-proxy-e2e3.mjs:143
+所在位置 行:1 字符: 1
++ node C:\LibreTV\cdp-proxy-e2e3.mjs 2>&1 | Out-File -FilePath "C:\Libr ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (file:///C:/Libr...xy-e2e3.mjs:143:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+test('T4 跳转播放页', t4 && t4.url.includes('/watch'), JSON.stringify(t4 && t4.url));
+                              ^
+
+TypeError: Cannot read properties of undefined (reading 'includes')
+    at file:///C:/LibreTV/cdp-proxy-e2e3.mjs:143:31
+
+Node.js v22.23.2

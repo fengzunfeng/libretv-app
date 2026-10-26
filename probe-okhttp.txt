@@ -1,0 +1,14 @@
+== https://cj.ffzyapi.com/api.php/provide/vod/from/ffm3u8?ac=videolist&wd=%E7%83%AD&pg=1
+  OK proto=h2 code=200 total=145 len=62973
+== https://cj.lziapi.com/api.php/provide/vod/from/lzm3u8?ac=videolist&wd=%E7%83%AD&pg=1
+  ERR java.net.SocketTimeoutException: Connect timed out
+== https://api.guangsuapi.com/api.php/provide/vod?ac=videolist&wd=%E7%83%AD&pg=1
+  OK proto=h2 code=200 total=747 len=35192
+== https://360zy.com/api.php/provide/vod?ac=videolist&wd=%E7%83%AD&pg=1
+  OK proto=http/1.1 code=200 total=307 len=55058
+== https://api.apibdzy.com/api.php/provide/vod/from/dbm3u8?ac=videolist&wd=%E7%83%AD&pg=1
+  OK proto=h2 code=200 total=164 len=84890
+== http://43.139.196.163:31308/gather/json?wd=%E7%83%AD
+  OK proto=http/1.1 code=200 total=161 len=120295
+== https://api.wujinapi.com/api.php/provide/vod?ac=videolist&wd=%E7%83%AD&pg=1
+  OK proto=h2 code=200 total=729 len=89348

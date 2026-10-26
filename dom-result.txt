@@ -1,0 +1,118 @@
+﻿HOME CLICKABLES: {
+ "clickables": [
+  {
+   "tag": "A",
+   "text": "LibreTV 首页",
+   "href": "/"
+  },
+  {
+   "tag": "A",
+   "text": "直播",
+   "href": "/live/"
+  },
+  {
+   "tag": "A",
+   "text": "关于",
+   "href": "/about/"
+  },
+  {
+   "tag": "BUTTON",
+   "text": "切换主题，当前 深色",
+   "href": ""
+  },
+  {
+   "tag": "BUTTON",
+   "text": "观看历史",
+   "href": ""
+  },
+  {
+   "tag": "BUTTON",
+   "text": "下载管理",
+   "href": ""
+  },
+  {
+   "tag": "BUTTON",
+   "text": "设置",
+   "href": ""
+  },
+  {
+   "tag": "BUTTON",
+   "text": "搜索",
+   "href": ""
+  },
+  {
+   "tag": "BUTTON",
+   "text": "电影周榜",
+   "href": ""
+  },
+  {
+   "tag": "BUTTON",
+   "text": "国产剧周榜",
+   "href": ""
+  },
+  {
+   "tag": "BUTTON",
+   "text": "海外剧周榜",
+   "href": ""
+  },
+  {
+   "tag": "BUTTON",
+   "text": "国内综艺",
+   "href": ""
+  },
+  {
+   "tag": "BUTTON",
+   "text": "海外综艺",
+   "href": ""
+  },
+  {
+   "tag": "BUTTON",
+   "text": "百度热播剧",
+   "href": ""
+  },
+  {
+   "tag": "A",
+   "text": "LibreTV vstandalone-",
+   "href": "https://github.com/LibreSpark/LibreTV"
+  }
+ ],
+ "navText": "直播\n关于"
+}
+SEARCH CARDS: {
+ "cards": [
+  {
+   "tag": "DIV",
+   "text": "直播\n关于",
+   "childA": true,
+   "childBtn": true,
+   "href": "/"
+  },
+  {
+   "tag": "NAV",
+   "text": "直播\n关于",
+   "childA": true,
+   "childBtn": true,
+   "href": "/live/"
+  },
+  {
+   "tag": "SECTION",
+   "text": "LibreTV 视频搜索\n搜索",
+   "childA": false,
+   "childBtn": true,
+   "href": ""
+  },
+  {
+   "tag": "DIV",
+   "text": "“长津湖” 的搜索结果（0 部影片 · 0 条结果，4 个源失败）",
+   "childA": false,
+   "childBtn": false,
+   "href": ""
+  }
+ ],
+ "allA": [
+  "/",
+  "/live/",
+  "/about/",
+  "https://github.com/LibreSpark/LibreTV"
+ ]
+}

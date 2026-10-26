@@ -1,0 +1,23 @@
+﻿PASS | T1 首页渲染 | ["搜索","电影周榜","国产剧周榜","海外剧周榜","国内综艺","海外综艺","百度热播剧"]
+FAIL | T1 本地视频按钮(注入桥后显示) | ["搜索","电影周榜","国产剧周榜","海外剧周榜","国内综艺","海外综艺","百度热播剧"]
+FAIL | T1 本地视频按钮调用JS桥 | pickCalled=false
+PASS | T2 搜索返回结果(4源聚合) | "直播\n关于\nLibreTV 视频搜索\n搜索\n播放本地视频\n“长津湖” 的搜索结果（3 部影片 · 8 条结果）\n4 源\n长津湖\n战争片\n2021\n\n正片\n\n4 个来源\n长津湖之水门桥\n剧情片\n2021\n未测到\n\n正片\n\n360资源\n3 源\n长津湖之水门桥\n剧情片\n2022\n\n更新HD中字\n\n3 个来源\n\nLibreTV vstandalone-2.19.7 · AGPL-3.0 License"
+PASS | T2 无源失败 | noFailures=true
+FAIL | T3 详情页导航 | "http://127.0.0.1:8777/"
+FAIL | T3 详情有分集 | []
+FAIL | T4 播放器出现 | undefined
+PASS | T4 播放无报错 | readyState=undefined undefined
+node : file:///C:/LibreTV/cdp-proxy-e2e2.mjs:173
+所在位置 行:1 字符: 1
++ node C:\LibreTV\cdp-proxy-e2e2.mjs 2>&1 | Out-File -FilePath "C:\Libr ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (file:///C:/Libr...xy-e2e2.mjs:173:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+test('T5 设置页打开', t5 && t5.url.includes('settings'), JSON.stringify(t5 && t5.url));
+                              ^
+
+TypeError: Cannot read properties of undefined (reading 'includes')
+    at file:///C:/LibreTV/cdp-proxy-e2e2.mjs:173:31
+
+Node.js v22.23.2

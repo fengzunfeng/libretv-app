@@ -1,0 +1,69 @@
+﻿
+> libretv@2.19.7 build
+> next build
+
+   ▲ Next.js 15.5.26
+   - Environments: .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 4.6s
+   Linting and checking validity of types ...
+
+./src/lib/api-guard.ts
+4:30  Warning: 'req' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/lib/client-api.ts
+106:3  Warning: 'signal' is defined but never used.  @typescript-eslint/no-unused-vars
+171:68  Warning: 'signal' is defined but never used.  @typescript-eslint/no-unused-vars
+229:17  Warning: '_password' is defined but never used.  @typescript-eslint/no-unused-vars
+274:5  Warning: '_type' is defined but never used.  @typescript-eslint/no-unused-vars
+275:5  Warning: '_tag' is defined but never used.  @typescript-eslint/no-unused-vars
+276:5  Warning: '_pageStart' is defined but never used.  @typescript-eslint/no-unused-vars
+277:5  Warning: '_pageSize' is defined but never used.  @typescript-eslint/no-unused-vars
+278:5  Warning: '_signal' is defined but never used.  @typescript-eslint/no-unused-vars
+281:27  Warning: '_signal' is defined but never used.  @typescript-eslint/no-unused-vars
+283:19  Warning: '_id' is defined but never used.  @typescript-eslint/no-unused-vars
+283:33  Warning: '_signal' is defined but never used.  @typescript-eslint/no-unused-vars
+286:5  Warning: '_items' is defined but never used.  @typescript-eslint/no-unused-vars
+287:5  Warning: '_onResult' is defined but never used.  @typescript-eslint/no-unused-vars
+288:5  Warning: '_signal' is defined but never used.  @typescript-eslint/no-unused-vars
+353:5  Warning: '_payload' is defined but never used.  @typescript-eslint/no-unused-vars
+360:24  Warning: '_url' is defined but never used.  @typescript-eslint/no-unused-vars
+360:39  Warning: '_force' is defined but never used.  @typescript-eslint/no-unused-vars
+360:57  Warning: '_signal' is defined but never used.  @typescript-eslint/no-unused-vars
+365:19  Warning: '_epgUrl' is defined but never used.  @typescript-eslint/no-unused-vars
+365:37  Warning: '_tvgId' is defined but never used.  @typescript-eslint/no-unused-vars
+365:54  Warning: '_force' is defined but never used.  @typescript-eslint/no-unused-vars
+365:72  Warning: '_signal' is defined but never used.  @typescript-eslint/no-unused-vars
+370:20  Warning: '_url' is defined but never used.  @typescript-eslint/no-unused-vars
+372:19  Warning: '_url' is defined but never used.  @typescript-eslint/no-unused-vars
+377:5  Warning: '_urls' is defined but never used.  @typescript-eslint/no-unused-vars
+378:5  Warning: '_onResult' is defined but never used.  @typescript-eslint/no-unused-vars
+379:5  Warning: '_signal' is defined but never used.  @typescript-eslint/no-unused-vars
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+   Collecting page data ...
+   Generating static pages (0/7) ...
+   Generating static pages (1/7) 
+   Generating static pages (3/7) 
+   Generating static pages (5/7) 
+ ✓ Generating static pages (7/7)
+   Finalizing page optimization ...
+   Collecting build traces ...
+   Exporting (0/2) ...
+ ✓ Exporting (2/2)
+
+Route (app)                                 Size  First Load JS
+┌ ○ /                                    11.2 kB         235 kB
+├ ○ /_not-found                            993 B         104 kB
+├ ○ /about                               2.65 kB         223 kB
+├ ○ /live                                18.8 kB         239 kB
+└ ○ /watch                               8.07 kB         215 kB
++ First Load JS shared by all             103 kB
+  ├ chunks/255-d4141a7f82b223fc.js       46.3 kB
+  ├ chunks/4bd1b696-21f374d1156f834a.js  54.2 kB
+  └ other shared chunks (total)          2.12 kB
+
+
+○  (Static)  prerendered as static content
+

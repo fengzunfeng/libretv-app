@@ -1,0 +1,19 @@
+﻿PASS | T1 首页渲染(搜索框) | {"hasInput":true,"inputPlaceholder":"输入影片名称...","inputType":"text","buttons":["搜索","电影周榜","国产剧周榜","海外剧周榜","国内综艺","海外综艺","百度热播剧"],"title":"LibreTV - 免费在线视频搜索与观看平台","hasMain":true,"bodyLen":96}
+FAIL | T1 首页含本地视频按钮 | ["搜索","电影周榜","国产剧周榜","海外剧周榜","国内综艺","海外综艺","百度热播剧"]
+FAIL | T1 首页非RSC原文 | bodyLen=96
+FAIL | T2 搜索有结果链接 | {"resultLinks":0,"bodySnippet":"直播\n关于\nLibreTV\n搜索\n电影周榜\n国产剧周榜\n海外剧周榜\n国内综艺\n海外综艺\n百度热播剧\n\nLibreTV vstandalone-2.19.7 · AGPL-3.0 License","hasLoading":false,"hasNoResult":false}
+FAIL | T2 页面显示片名 | "直播\n关于\nLibreTV\n搜索\n电影周榜\n国产剧周榜\n海外剧周榜\n国内综艺\n海外综艺\n百度热播剧\n\nLibreTV vstandalone-2.19.7 · AGPL-3.0 License"
+node : file:///C:/LibreTV/cdp-e2e.mjs:97
+所在位置 行:1 字符: 1
++ node C:\LibreTV\cdp-e2e.mjs 2>&1 | Out-File -FilePath "C:\LibreTV\e2e ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (file:///C:/LibreTV/cdp-e2e.mjs:97:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+test('T3 详情页导航成功', detail && detail.url.includes('/watch'), JSON.stringify(detail && detail.url));
+                                        ^
+
+TypeError: Cannot read properties of undefined (reading 'includes')
+    at file:///C:/LibreTV/cdp-e2e.mjs:97:41
+
+Node.js v22.23.2

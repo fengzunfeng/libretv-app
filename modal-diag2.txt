@@ -1,0 +1,16 @@
+﻿CLICK SOURCE: "NO ROW"
+DUMP: {
+ "hasDialog": false,
+ "dialogText": "no dialog",
+ "buttons": [
+  "搜索",
+  "播放本地视频",
+  "电影周榜",
+  "国产剧周榜",
+  "海外剧周榜",
+  "国内综艺",
+  "海外综艺",
+  "百度热播剧"
+ ],
+ "bodyTail": "直播\n关于\nLibreTV\n搜索\n播放本地视频\n电影周榜\n国产剧周榜\n海外剧周榜\n国内综艺\n海外综艺\n百度热播剧\n\nLibreTV vstandalone-2.19.7 · AGPL-3.0 License"
+}

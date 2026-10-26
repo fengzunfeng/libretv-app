@@ -1,0 +1,20 @@
+﻿PASS | T1 首页渲染 | ok
+PASS | T2 搜索返回结果 | "直播\n关于\nLibreTV 视频搜索\n搜索\n播放本地视频\n“长津湖” 的搜索结果（3 部影片 · 8 条结果）\n4 源\n长津湖\n战争片\n2021\n\n正片\n\n4 个来源\n长津湖之水门桥\n剧情片\n2021\n\n正片\n\n360资源\n3 源\n长津湖之水门桥\n剧情片\n2022\n\n更新HD中字\n\n3 个来源\n\nLibreTV vst"
+PASS | T2 无源失败 | ok
+PASS | T2 本地视频按钮 | ok
+PASS | T3 详情弹窗+选源 | {"m":true,"s":true}
+FAIL | T3 选集出现 | []
+node : file:///C:/LibreTV/cdp-proxy-e2e4.mjs:142
+所在位置 行:1 字符: 1
++ node C:\LibreTV\cdp-proxy-e2e4.mjs 2>&1 | Out-File -FilePath "C:\Libr ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (file:///C:/Libr...xy-e2e4.mjs:142:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+test('T4 跳转播放页', t4 && t4.url.includes('/watch'), JSON.stringify(t4 && t4.url));
+                              ^
+
+TypeError: Cannot read properties of undefined (reading 'includes')
+    at file:///C:/LibreTV/cdp-proxy-e2e4.mjs:142:31
+
+Node.js v22.23.2

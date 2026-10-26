@@ -13,3 +13,7 @@ vitest-results.json
 .codebuddy/
 generated-images/
 .vercel
+
+cdp-profile/
+*.result.txt
+test-server.log

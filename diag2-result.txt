@@ -1,0 +1,14 @@
+﻿HYDRATION STATE: {
+ "nextF": "object",
+ "nextFLen": 8,
+ "nextRoot": false,
+ "nextRootHTML": "none",
+ "inputCount": 1,
+ "hasSearchBtn": true
+}
+SEARCH RESULT: {
+ "bodySnippet": "直播\n关于\nLibreTV 视频搜索\n搜索\n“长津湖” 的搜索结果（0 部影片 · 0 条结果，4 个源失败）\n部分点播源请求失败：\n✗ 非凡资源\n✗ 光速资源\n✗ 360资源\n✗ 百度资源\n\n没有找到匹配的结果\n\n请尝试其他关键词或更换点播源\n\nLibreTV vstandalone-2.19.7 · AGPL-3.0 License",
+ "links": 0,
+ "url": "http://127.0.0.1:8777/?s=%E9%95%BF%E6%B4%A5%E6%B9%96"
+}
+EVENTS (0):
