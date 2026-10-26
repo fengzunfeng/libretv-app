@@ -24,6 +24,11 @@ const server = http.createServer((req, res) => {
   let rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
   if (rel === '') rel = rsc ? 'index.txt' : 'index.html';
   else if (!rel.includes('.')) rel = rel + '/index' + (rsc ? '.txt' : '.html');
+  // 与安卓壳 serveLocal 相同的映射：RSC payload 内相对 static/chunks/... → _next/static/chunks/...
+  for (const marker of ['static/chunks/', 'static/css/', 'static/media/']) {
+    const i = rel.indexOf(marker);
+    if (i >= 0) { rel = '_next/' + rel.substring(i); break; }
+  }
 
   const root = path.resolve(ROOT);
   const abs = path.resolve(root, rel);

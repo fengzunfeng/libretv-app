@@ -17,12 +17,15 @@ function readAppVersion(): string {
 /**
  * 独立版（Standalone）：静态导出，全部前端逻辑打进 APK。
  * - output: 'export'：所有页面预渲染为静态 HTML
- * - assetPrefix: './'：静态资源使用相对路径，便于在 file:// 或本地 WebView 中加载
+ * - 不使用 assetPrefix：RSC payload 与 HTML 内的资源引用都使用标准绝对路径
+ *   /_next/static/...，安卓壳 serveLocal 已对站点绝对路径做完整映射
+ *   （file:///_next/... → assets/www/_next/...）。
+ *   注意：assetPrefix: './' 会导致 RSC payload 的 chunk 引用变成 static/chunks/...
+ *   （丢失 _next/ 前缀），SPA 导航时动态 import 404、路由失败（页面显示 RSC 原文）。
  * - trailingSlash: true：链接统一带尾斜杠，本地加载更稳
  */
 const nextConfig: NextConfig = {
   output: 'export',
-  assetPrefix: './',
   trailingSlash: true,
   reactStrictMode: true,
   env: { APP_VERSION: readAppVersion() },

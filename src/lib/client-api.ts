@@ -73,10 +73,18 @@ const BUILTIN_SOURCES: SourceConfig[] = [
   { key: 'ffm3u8', name: '非凡资源', url: 'https://cj.ffzyapi.com/api.php/provide/vod/from/ffm3u8' },
   { key: 'lzm3u8', name: '量子资源', url: 'https://cj.lziapi.com/api.php/provide/vod/from/lzm3u8' },
   { key: 'gsm3u8', name: '光速资源', url: 'https://api.guangsuapi.com/api.php/provide/vod' },
-  { key: 'wjm3u8', name: '无尽资源', url: 'https://api.wujinapi.com/api.php/provide/vod' },
   { key: '360zy', name: '360资源', url: 'https://360zy.com/api.php/provide/vod' },
   { key: 'dbm3u8', name: '百度资源', url: 'https://api.apibdzy.com/api.php/provide/vod/from/dbm3u8' },
+  { key: 'rrys', name: '人人影视', url: 'http://43.139.196.163:31308/gather/json' },
 ];
+
+/** 请求超时信号：优先 AbortSignal.timeout；老 WebView 降级为手动 AbortController */
+function withTimeout(ms: number): AbortSignal {
+  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), ms);
+  return ctrl.signal;
+}
 
 
 const STANDALONE_STATUS: AuthStatusResponse = {
@@ -107,7 +115,7 @@ async function searchSourceDirect(
       return finish({ sourceKey: source.key, ok: false, list: [], error: '无效的源地址' });
     }
     const api = `${source.url.replace(/\/+$/, '')}?ac=videolist&wd=${encodeURIComponent(wd)}&pg=1`;
-    const res = await fetch(api, { headers: cmsRequestHeaders(), signal });
+    const res = await fetch(api, { headers: cmsRequestHeaders(), signal: withTimeout(8000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const list = parseSearchList(data, source);
@@ -170,7 +178,7 @@ async function fetchDetailDirect(id: string, source: SourceConfig, signal?: Abor
   // 1) 标准列表接口
   const api = `${base}?ac=videolist&ids=${encodeURIComponent(id)}`;
   try {
-    const res = await fetch(api, { headers: cmsRequestHeaders(), signal });
+    const res = await fetch(api, { headers: cmsRequestHeaders(), signal: withTimeout(8000) });
     if (res.ok) {
       const data = await res.json();
       try {
@@ -197,7 +205,7 @@ async function fetchDetailDirect(id: string, source: SourceConfig, signal?: Abor
         const detailUrl = `${detailRoot}/index.php/vod/detail/id/${id}.html`;
         const detailRes = await fetch(detailUrl, {
           headers: { 'User-Agent': cmsRequestHeaders()['User-Agent'], Accept: 'text/html' },
-          signal,
+          signal: withTimeout(8000),
         });
         if (detailRes.ok) {
           const html = await detailRes.text();
@@ -287,9 +295,14 @@ export const api = {
     const start = performance.now();
     try {
       const base = url.replace(/\/+$/, '');
-      const res = await fetch(`${base}?ac=videolist&wd=test&pg=1`, { headers: cmsRequestHeaders() });
+      const res = await fetch(`${base}?ac=videolist&wd=test&pg=1`, { headers: cmsRequestHeaders(), signal: withTimeout(8000) });
       const ms = Math.round(performance.now() - start);
-      if (!res.ok) return { ok: false, ms, error: `HTTP ${res.status}` };
+      if (!res.ok) {
+        // 附带响应体摘要：代理 502 时能看到真实错误（如 SSLHandshakeException / ConnectException）
+        let detail = "";
+        try { detail = (await res.text()).slice(0, 120); } catch { /* 忽略 */ }
+        return { ok: false, ms, error: detail ? `HTTP ${res.status} ${detail}` : `HTTP ${res.status}` };
+      }
       const data = (await res.json()) as { list?: unknown };
       const count = Array.isArray(data.list) ? data.list.length : 0;
       return { ok: true, ms, count };
@@ -304,7 +317,7 @@ export const api = {
 
   /** 远程订阅：直连拉取并解析（支持 LibreTV-SourceList JSON；失败时抛错） */
   fetchSourceList: async (url: string): Promise<SourceListPayload> => {
-    const res = await fetch(url, { headers: cmsRequestHeaders() });
+    const res = await fetch(url, { headers: cmsRequestHeaders(), signal: withTimeout(10000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     let data: unknown;
     try {
