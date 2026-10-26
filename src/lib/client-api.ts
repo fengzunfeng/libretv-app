@@ -69,13 +69,13 @@ export function onUnauthorized(handler: (event: CustomEvent) => void): () => voi
 
 // —— 独立版固定状态：无需密码、已验证；内置一批公开采集站源（可失效，用户可在设置中增删） ——
 
+// 内置源为“搜索+详情+播放”全链路实测可用的采集站（2026-10-26 复测）：
+// 量子(lziapi)手机端 TLS 兼容失败、人人影视播放需鉴权(401)、无尽不稳定——均不内置，可手动添加尝试
 const BUILTIN_SOURCES: SourceConfig[] = [
   { key: 'ffm3u8', name: '非凡资源', url: 'https://cj.ffzyapi.com/api.php/provide/vod/from/ffm3u8' },
-  { key: 'lzm3u8', name: '量子资源', url: 'https://cj.lziapi.com/api.php/provide/vod/from/lzm3u8' },
   { key: 'gsm3u8', name: '光速资源', url: 'https://api.guangsuapi.com/api.php/provide/vod' },
   { key: '360zy', name: '360资源', url: 'https://360zy.com/api.php/provide/vod' },
   { key: 'dbm3u8', name: '百度资源', url: 'https://api.apibdzy.com/api.php/provide/vod/from/dbm3u8' },
-  { key: 'rrys', name: '人人影视', url: 'http://43.139.196.163:31308/gather/json' },
 ];
 
 /** 请求超时信号：优先 AbortSignal.timeout；老 WebView 降级为手动 AbortController */
