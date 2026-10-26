@@ -1,10 +1,38 @@
 'use client';
 
-import type { SearchResponse, SearchStreamEvent, SourceSearchOutcome, VideoDetail, DoubanResponse, BangumiCalendarResponse, AuthStatusResponse, SourceConfig, SearchResultItem, LivePlaylistResponse, LiveEpgResponse, SourceListPayload, QualityProbeItem, QualityProbeResult } from './types';
+import type {
+  AuthStatusResponse,
+  BangumiCalendarResponse,
+  DoubanResponse,
+  LiveEpgResponse,
+  LivePlaylistResponse,
+  QualityProbeItem,
+  QualityProbeResult,
+  SearchResponse,
+  SourceConfig,
+  SourceListPayload,
+  SourceSearchOutcome,
+  VideoDetail,
+} from './types';
+import {
+  cmsRequestHeaders,
+  parseSearchList,
+  parseDetail,
+  parseDetailPageHtml,
+  filterAdultResults,
+  filterRelevantResults,
+  normalizeTitle,
+} from './cms-parser';
 
 /**
- * 客户端 API 封装。401 时触发全局事件打开登录框，
- * 替代旧版在每个函数里手工检查 isPasswordVerified 的散弹式写法。
+ * LibreTV 独立版（Standalone）客户端 API。
+ *
+ * 纯前端实现：搜索 / 详情 / 测活全部在浏览器（WebView）内直连采集站完成，
+ * 不依赖任何后端服务。安卓壳（ProxyWebViewClient）在 WebView 层拦截并代理
+ * 所有 http/https 请求（含 libretv.local 虚拟代理），因此无需考虑 CORS 与防盗链。
+ *
+ * 辅助能力（直播、豆瓣推荐、画质探测、订阅发布）在独立版中降级为空实现，
+ * 保持函数签名不变，调用方无需改动。
  */
 
 export class ApiError extends Error {
@@ -17,25 +45,20 @@ export class ApiError extends Error {
 
 const UNAUTHORIZED_EVENT = 'libretv:unauthorized';
 
-/** 单条测活结果（/api/live/probe，JSON 与 NDJSON 流共用同一结构） */
+/** 单条测活结果（兼容旧结构，独立版不使用） */
 export interface LiveProbeResult {
   url: string;
   ok: boolean;
   status?: number;
-  /** 分片级探测：仅统计分片往返耗时 */
   ms?: number;
-  /** segment=分片级（最可信）/ manifest=仅列表可达 / head=直链单级 */
   level?: 'segment' | 'manifest' | 'head';
   error?: string;
-  /** master playlist 的 CODECS，用于前端提示 H.265 等不可解码情况 */
   codec?: string;
-  /** 因超时失败：源可能只是慢，前端以琥珀色区分于真正的不可达 */
   timedOut?: boolean;
-  /** 分片吞吐估算（kbps）：低于阈值的源前端标记为「源限速」 */
   kbps?: number;
 }
 
-/** /api/status 的 React Query key：Providers 与 AuthProvider 共用，避免同一页面重复请求 */
+/** /api/status 的 React Query key（保留，供 Providers/AuthProvider 共用） */
 export const STATUS_QUERY_KEY = ['app-status'] as const;
 
 export function onUnauthorized(handler: (event: CustomEvent) => void): () => void {
@@ -44,83 +67,163 @@ export function onUnauthorized(handler: (event: CustomEvent) => void): () => voi
   return () => window.removeEventListener(UNAUTHORIZED_EVENT, wrapped);
 }
 
-/** 401/503 统一处理：分发全局事件打开登录框并抛 ApiError（普通与流式请求共用） */
-function throwForAuthStatus(res: Response): void {
-  if (res.status === 401) {
-    window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
-    throw new ApiError('需要登录', 401);
-  }
-  if (res.status === 503) {
-    window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT, { detail: 'setup' }));
-    throw new ApiError('服务器未配置密码', 503);
-  }
-}
+// —— 独立版固定状态：无需密码、已验证；内置一批公开采集站源（可失效，用户可在设置中增删） ——
 
-/** NDJSON 流读取：按行解析 JSON 并回调，坏行跳过不影响其余结果 */
-async function consumeNdjson<T>(res: Response, onEvent: (event: T) => void): Promise<void> {
-  if (!res.body) throw new ApiError(`请求失败 (${res.status})`, res.status);
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  const consume = (line: string) => {
-    const text = line.trim();
-    if (!text) return;
-    try {
-      onEvent(JSON.parse(text) as T);
-    } catch {
-      // 坏行跳过，不影响其余结果
-    }
-  };
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let idx: number;
-    while ((idx = buffer.indexOf('\n')) >= 0) {
-      consume(buffer.slice(0, idx));
-      buffer = buffer.slice(idx + 1);
-    }
-  }
-  buffer += decoder.decode();
-  consume(buffer);
-}
+const BUILTIN_SOURCES: SourceConfig[] = [
+  { key: 'ffm3u8', name: '非凡资源', url: 'https://cj.ffzyapi.com/api.php/provide/vod/from/ffm3u8' },
+  { key: 'lzm3u8', name: '量子资源', url: 'https://cj.lziapi.com/api.php/provide/vod/from/lzm3u8' },
+  { key: 'gsm3u8', name: '光速资源', url: 'https://api.guangsuapi.com/api.php/provide/vod' },
+  { key: 'wjm3u8', name: '无尽资源', url: 'https://api.wujinapi.com/api.php/provide/vod' },
+  { key: '360zy', name: '360资源', url: 'https://360zy.com/api.php/provide/vod' },
+  { key: 'dbm3u8', name: '百度资源', url: 'https://api.apibdzy.com/api.php/provide/vod/from/dbm3u8' },
+];
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  let res: Response;
+
+const STANDALONE_STATUS: AuthStatusResponse = {
+  passwordRequired: false,
+  verified: true,
+  version: 'standalone-2.19.7',
+  defaultSources: BUILTIN_SOURCES,
+  defaultLiveSources: [],
+  defaultSubscriptions: [],
+  defaultRecommendSource: null,
+  defaultImageMode: null,
+};
+
+// —— 搜索（浏览器端直连，多源并行第一页 + 聚合） ——
+
+async function searchSourceDirect(
+  source: SourceConfig,
+  wd: string,
+  signal?: AbortSignal
+): Promise<SourceSearchOutcome> {
+  const start = Date.now();
+  const finish = (outcome: Omit<SourceSearchOutcome, 'ms'>): SourceSearchOutcome => ({
+    ...outcome,
+    ms: Date.now() - start,
+  });
   try {
-    res = await fetch(url, init);
+    if (!/^https?:\/\//.test(source.url || '')) {
+      return finish({ sourceKey: source.key, ok: false, list: [], error: '无效的源地址' });
+    }
+    const api = `${source.url.replace(/\/+$/, '')}?ac=videolist&wd=${encodeURIComponent(wd)}&pg=1`;
+    const res = await fetch(api, { headers: cmsRequestHeaders(), signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const list = parseSearchList(data, source);
+    return finish({ sourceKey: source.key, ok: true, list });
   } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') throw err;
-    throw new ApiError('网络请求失败，请检查网络连接', 0);
+    const aborted = err instanceof DOMException && err.name === 'AbortError';
+    return finish({
+      sourceKey: source.key,
+      ok: false,
+      list: [],
+      error: aborted ? '已取消' : err instanceof Error ? err.message : '请求失败',
+      timedOut: !aborted && err instanceof Error && err.name === 'TimeoutError',
+    });
   }
-  throwForAuthStatus(res);
-  if (!res.ok) {
-    let msg = `请求失败 (${res.status})`;
+}
+
+/** 合并 + 去重 + 过滤 + 排序（与旧版服务端聚合逻辑对齐） */
+function aggregateOutcomes(
+  outcomes: SourceSearchOutcome[],
+  wd: string,
+  filterAdult: boolean
+): SearchResponse {
+  const seen = new Set<string>();
+  let list = outcomes.flatMap((o) => o.list).filter((item) => {
+    const key = `${item.sourceKey}_${item.vodId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  list = filterAdultResults(list, filterAdult);
+  list = filterRelevantResults(list, wd);
+
+  const exact = normalizeTitle(wd);
+  list.sort((a, b) => {
+    const aExact = normalizeTitle(a.name || '') === exact ? 0 : 1;
+    const bExact = normalizeTitle(b.name || '') === exact ? 0 : 1;
+    if (aExact !== bExact) return aExact - bExact;
+    const nameCompare = (a.name || '').localeCompare(b.name || '', 'zh-Hans-CN');
+    if (nameCompare !== 0) return nameCompare;
+    return (a.sourceName || '').localeCompare(b.sourceName || '', 'zh-Hans-CN');
+  });
+
+  const failures = outcomes
+    .filter((o) => !o.ok)
+    .map((o) => ({ sourceKey: o.sourceKey, error: o.error || '请求失败', timedOut: o.timedOut }));
+
+  return { list, failures };
+}
+
+// —— 详情（浏览器端直连：列表接口 + 详情页 HTML 降级） ——
+
+async function fetchDetailDirect(id: string, source: SourceConfig, signal?: AbortSignal): Promise<VideoDetail> {
+  if (!/^https?:\/\//.test(source.url || '')) {
+    throw new Error('无效的点播源配置');
+  }
+  const base = source.url.replace(/\/+$/, '');
+  let resolved: VideoDetail | null = null;
+
+  // 1) 标准列表接口
+  const api = `${base}?ac=videolist&ids=${encodeURIComponent(id)}`;
+  try {
+    const res = await fetch(api, { headers: cmsRequestHeaders(), signal });
+    if (res.ok) {
+      const data = await res.json();
+      try {
+        const detail = parseDetail(data, source);
+        if (detail.episodes.length > 0) resolved = detail;
+      } catch {
+        // 无内容，继续尝试详情页
+      }
+    }
+  } catch {
+    // 网络失败，继续尝试详情页
+  }
+
+  // 2) 详情页 HTML 提取（部分源需要爬详情页）
+  if (!resolved) {
+    let detailRoot: string;
     try {
-      const data = (await res.json()) as { error?: string };
-      if (data?.error) msg = data.error;
-    } catch { /* 忽略解析失败 */ }
-    throw new ApiError(msg, res.status);
+      detailRoot = (source.detail || new URL(source.url).origin).replace(/\/+$/, '');
+    } catch {
+      detailRoot = '';
+    }
+    if (/^https?:\/\//.test(detailRoot)) {
+      try {
+        const detailUrl = `${detailRoot}/index.php/vod/detail/id/${id}.html`;
+        const detailRes = await fetch(detailUrl, {
+          headers: { 'User-Agent': cmsRequestHeaders()['User-Agent'], Accept: 'text/html' },
+          signal,
+        });
+        if (detailRes.ok) {
+          const html = await detailRes.text();
+          resolved = parseDetailPageHtml(html, source);
+        }
+      } catch {
+        // 详情页提取失败，交给下方统一报错
+      }
+    }
   }
-  return (await res.json()) as T;
+
+  if (!resolved || resolved.episodes.length === 0) {
+    throw new Error('未找到播放资源');
+  }
+  return resolved;
 }
 
 export const api = {
-  status: () => request<AuthStatusResponse>('/api/status'),
+  status: async (): Promise<AuthStatusResponse> => STANDALONE_STATUS,
 
-  login: (password: string) =>
-    request<{ success: boolean }>('/api/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
-    }),
+  login: async (_password?: string): Promise<{ success: boolean }> => ({ success: true }),
 
-  logout: () => request<{ success: boolean }>('/api/auth', { method: 'DELETE' }),
+  logout: async (): Promise<{ success: boolean }> => ({ success: true }),
 
   /**
-   * 聚合搜索。传入 onSource 时走 /api/search?stream=1 的 NDJSON 流：
-   * 每个源结算立即回调（健康源结果不再等坏源超时），最终以聚合结果 resolve。
-   * 未传 onSource 或流不可用时回退为一次性 JSON 请求。
+   * 聚合搜索（浏览器端直连）。传入 onSource 时逐源回调，最终以聚合结果 resolve。
    */
   search: async (
     wd: string,
@@ -130,187 +233,139 @@ export const api = {
   ): Promise<SearchResponse> => {
     const signal = opts?.signal;
     const onSource = opts?.onSource;
-    if (!onSource) {
-      return request<SearchResponse>('/api/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wd, sources, filterAdult }),
-        signal,
-      });
+    const outcomes = await Promise.all(
+      sources.slice(0, 50).map((source) => searchSourceDirect(source, wd, signal))
+    );
+    if (onSource) {
+      for (const outcome of outcomes) onSource(outcome);
     }
-    return searchStream(wd, sources, filterAdult, onSource, signal);
+    return aggregateOutcomes(outcomes, wd, filterAdult);
   },
 
-  detail: (id: string, source: SourceConfig, signal?: AbortSignal) => {
-    const sp = new URLSearchParams({ id, source: JSON.stringify(source) });
-    return request<VideoDetail>(`/api/detail?${sp.toString()}`, { signal });
-  },
+  detail: (id: string, source: SourceConfig, signal?: AbortSignal) => fetchDetailDirect(id, source, signal),
 
-  /**
-   * 批量画质探测（NDJSON 流式）：展开来源面板时逐条回调，先到的源先显示画质。
-   * 结果里的 height 缺失代表「测不出」（单码率 m3u8 / 直链 / 防盗链），不是失败。
-   *
-   * 传输层失败（请求没发出去 / 流中途断开）不再原样冒泡：调用方原先只能静默成
-   * 「未测到」，线上出问题时无法区分「网关拦了」「容器崩了」「探测本身失败」。
-   * 服务端开流即写一行心跳，收到过首字节说明请求确实进了应用，据此给出不同文案。
-   */
-  qualityProbeStream: async (
-    items: QualityProbeItem[],
-    onResult: (result: QualityProbeResult) => void,
-    signal?: AbortSignal
-  ): Promise<void> => {
-    let res: Response;
-    try {
-      res = await fetch('/api/quality?stream=1', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items }),
-        signal,
-      });
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') throw err;
-      throw new ApiError('探测请求没能送达服务器（网络或反向代理中断）', 0);
-    }
-    throwForAuthStatus(res);
-    if (!res.ok || !res.body) throw new ApiError(`请求失败 (${res.status})`, res.status);
-
-    let firstByte = false;
-    try {
-      await consumeNdjson<QualityProbeResult | { ping: true }>(res, (event) => {
-        // 心跳行不是结果：收到它就证明请求确实进了 Next，后面的失败才归因于探测本身
-        if ('ping' in event) {
-          firstByte = true;
-          return;
-        }
-        firstByte = true;
-        onResult(event);
-      });
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') throw err;
-      throw new ApiError(
-        firstByte
-          ? '探测连接中途被断开（已收到部分结果，多为网关超时）'
-          : '探测请求被网关拦截（未收到任何响应）',
-        0
-      );
-    }
-  },
-
-  douban: (type: 'movie' | 'tv', tag: string, pageStart: number, pageSize: number, signal?: AbortSignal) => {
-    const sp = new URLSearchParams({ type, tag, pageStart: String(pageStart), pageSize: String(pageSize) });
-    return request<DoubanResponse>(`/api/douban?${sp.toString()}`, { signal });
-  },
-
-  /** Bangumi 每日放送（免 key），首页推荐的另一数据源 */
-  bangumiCalendar: (signal?: AbortSignal) => request<BangumiCalendarResponse>('/api/bangumi/calendar', { signal }),
-
-  /** 影视热榜（60s API 免 key）：豆瓣周榜五个类目 + 百度热播剧 */
-  hotList: (id: string, signal?: AbortSignal) => {
-    const sp = new URLSearchParams({ id });
-    return request<DoubanResponse>(`/api/hot-list?${sp.toString()}`, { signal });
-  },
-
-  /** 换源：按标题跨源搜索并取详情，附带接口耗时（测速）；支持 signal 以便关闭弹窗时中止在途请求 */
+  /** 换源：按标题跨源搜索并取详情，附带接口耗时（测速） */
   detailSpeed: async (id: string, source: SourceConfig, signal?: AbortSignal) => {
     const start = performance.now();
     try {
       const detail = await api.detail(id, source, signal);
       return { ok: true, ms: Math.round(performance.now() - start), detail };
     } catch (err) {
-      return { ok: false, ms: Math.round(performance.now() - start), detail: undefined as VideoDetail | undefined, error: err instanceof Error ? err.message : '失败' };
+      return {
+        ok: false,
+        ms: Math.round(performance.now() - start),
+        detail: undefined as VideoDetail | undefined,
+        error: err instanceof Error ? err.message : '失败',
+      };
     }
   },
 
-  /** 点播源探活：以搜索 "test" 的耗时与结果量衡量可用性 */
-  testSource: (url: string) =>
-    request<{ ok: boolean; ms: number; count?: number; error?: string }>('/api/source/test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
-    }),
+  // —— 以下辅助能力在独立版中降级为空实现 ——
 
-  /** 拉取远程数据源订阅（自动识别 LibreTV-SourceList JSON 与 TVBOX 配置 JSON） */
-  fetchSourceList: (url: string) => {
-    const sp = new URLSearchParams({ url });
-    return request<SourceListPayload>(`/api/source-list?${sp.toString()}`);
+  douban: async (
+    _type?: string,
+    _tag?: string,
+    _pageStart?: number,
+    _pageSize?: number,
+    _signal?: AbortSignal
+  ): Promise<DoubanResponse> => ({ items: [] }),
+
+  bangumiCalendar: async (_signal?: AbortSignal): Promise<BangumiCalendarResponse> => ({ days: [] }),
+
+  hotList: async (_id?: string, _signal?: AbortSignal): Promise<DoubanResponse> => ({ items: [] }),
+
+  qualityProbeStream: async (
+    _items: QualityProbeItem[],
+    _onResult: (result: QualityProbeResult) => void,
+    _signal?: AbortSignal
+  ): Promise<void> => {
+    // 独立版不做画质探测
   },
 
-  /** 把源列表发布到公开粘贴板换回订阅链接（走服务端代理：绕开 CORS，且目标域名固定不可控） */
-  publishSourceList: (payload: {
-    name?: string;
-    sources: { name: string; url: string }[];
-    liveSources: { name: string; url: string; epg?: string }[];
-  }) =>
-    request<{ url: string; provider: string; sources: number; liveSources: number }>('/api/publish', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
-
-  /** —— 直播 / IPTV —— */
-
-  /** 拉取并解析 M3U 订阅；force=1 跳过服务端缓存 */
-  livePlaylist: (url: string, force = false, signal?: AbortSignal) => {
-    const sp = new URLSearchParams({ url });
-    if (force) sp.set('force', '1');
-    return request<LivePlaylistResponse>(`/api/live/playlist?${sp.toString()}`, { signal });
-  },
-
-  /** 查询某频道的节目单（服务端缓存 6h） */
-  liveEpg: (epgUrl: string, tvgId: string, force = false, signal?: AbortSignal) => {
-    const sp = new URLSearchParams({ url: epgUrl, channel: tvgId });
-    if (force) sp.set('force', '1');
-    return request<LiveEpgResponse>(`/api/live/epg?${sp.toString()}`, { signal });
-  },
-
-  /** 直播订阅探活：以拉取解析耗时与频道数衡量可用性 */
-  liveTest: async (url: string) => {
+  /** 源测活：直连采集站搜索 "test" 衡量可用性 */
+  testSource: async (url: string) => {
     const start = performance.now();
     try {
-      const playlist = await api.livePlaylist(url, true);
-      return { ok: true, ms: Math.round(performance.now() - start), count: playlist.channels.length, error: undefined as string | undefined };
+      const base = url.replace(/\/+$/, '');
+      const res = await fetch(`${base}?ac=videolist&wd=test&pg=1`, { headers: cmsRequestHeaders() });
+      const ms = Math.round(performance.now() - start);
+      if (!res.ok) return { ok: false, ms, error: `HTTP ${res.status}` };
+      const data = (await res.json()) as { list?: unknown };
+      const count = Array.isArray(data.list) ? data.list.length : 0;
+      return { ok: true, ms, count };
     } catch (err) {
-      return { ok: false, ms: Math.round(performance.now() - start), count: 0, error: err instanceof Error ? err.message : '失败' };
+      return {
+        ok: false,
+        ms: Math.round(performance.now() - start),
+        error: err instanceof Error ? err.message : '请求失败',
+      };
     }
   },
 
-  /** 订阅导出（.m3u）下载地址 */
-  liveExportUrl: (url: string) => {
-    const sp = new URLSearchParams({ url, format: 'm3u' });
-    return `/api/live/playlist?${sp.toString()}`;
+  /** 远程订阅：直连拉取并解析（支持 LibreTV-SourceList JSON；失败时抛错） */
+  fetchSourceList: async (url: string): Promise<SourceListPayload> => {
+    const res = await fetch(url, { headers: cmsRequestHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    let data: unknown;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error('订阅内容不是有效的 JSON');
+    }
+    const obj = data as { name?: string; sources?: unknown; lives?: unknown };
+    const sources = Array.isArray(obj.sources)
+      ? (obj.sources as { name?: string; url?: string }[])
+          .filter((s) => s && typeof s.url === 'string' && /^https?:\/\//.test(s.url))
+          .map((s) => {
+            const url = s.url as string;
+            return { name: s.name || url, url };
+          })
+      : [];
+    const liveSources = Array.isArray(obj.lives)
+      ? (obj.lives as { name?: string; url?: string; epg?: string }[])
+          .filter((l) => l && typeof l.url === 'string' && /^https?:\/\//.test(l.url))
+          .map((l) => {
+            const url = l.url as string;
+            return { name: l.name || url, url, epg: l.epg };
+          })
+      : [];
+    if (sources.length === 0 && liveSources.length === 0) {
+      throw new Error('订阅内容为空或格式不支持');
+    }
+    return { name: obj.name, sources, liveSources };
   },
 
-  /** 批量测活：分片级探测频道可达性与延迟（单批最多 50 条） */
-  liveProbe: (urls: string[], signal?: AbortSignal) =>
-    request<{ results: LiveProbeResult[] }>(
-      '/api/live/probe',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls }),
-        signal,
-      }
-    ),
+  /** 独立版不支持发布订阅到第三方粘贴板 */
+  publishSourceList: async (
+    _payload?: { name?: string; sources: { name: string; url: string }[]; liveSources: { name: string; url: string; epg?: string }[] }
+  ): Promise<{ url: string; provider: string; sources: number; liveSources: number }> => {
+    throw new ApiError('独立版不支持发布订阅', 501);
+  },
 
-  /**
-   * 流式测活：服务端以 NDJSON 逐条推送（命中缓存的立即返回），
-   * 结果边测边回调，列表状态点可以边测边亮。
-   */
+  // —— 直播 / IPTV：独立版降级为空（保留原签名，忽略参数） ——
+
+  livePlaylist: async (_url?: string, _force?: boolean, _signal?: AbortSignal): Promise<LivePlaylistResponse> => ({
+    channels: [],
+    groups: [],
+  }),
+
+  liveEpg: async (_epgUrl?: string, _tvgId?: string, _force?: boolean, _signal?: AbortSignal): Promise<LiveEpgResponse> => ({
+    channelId: '',
+    programs: [],
+  }),
+
+  liveTest: async (_url?: string) => ({ ok: false, ms: 0, count: 0, error: '独立版不支持直播' }),
+
+  liveExportUrl: (_url?: string) => '',
+
+  liveProbe: async (): Promise<{ results: LiveProbeResult[] }> => ({ results: [] }),
+
   liveProbeStream: async (
-    urls: string[],
-    onResult: (result: LiveProbeResult) => void,
-    signal?: AbortSignal
+    _urls: string[],
+    _onResult: (result: LiveProbeResult) => void,
+    _signal?: AbortSignal
   ): Promise<void> => {
-    const res = await fetch('/api/live/probe?stream=1', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ urls }),
-      signal,
-    });
-    throwForAuthStatus(res);
-    if (!res.ok || !res.body) throw new ApiError(`请求失败 (${res.status})`, res.status);
-
-    await consumeNdjson<LiveProbeResult>(res, onResult);
+    // 独立版不做直播测活
   },
 };
 
@@ -320,33 +375,4 @@ export interface SearchFailure {
   timedOut?: boolean;
 }
 
-/** 聚合搜索流式消费：逐源回调 + 最终聚合结果（NDJSON 行协议，同 liveProbeStream） */
-async function searchStream(
-  wd: string,
-  sources: SourceConfig[],
-  filterAdult: boolean,
-  onSource: (outcome: SourceSearchOutcome) => void,
-  signal?: AbortSignal
-): Promise<SearchResponse> {
-  const res = await fetch('/api/search?stream=1', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ wd, sources, filterAdult }),
-    signal,
-  });
-    throwForAuthStatus(res);
-    if (!res.ok || !res.body) throw new ApiError(`请求失败 (${res.status})`, res.status);
-
-    // done 事件缺失（流被截断）时退化为空结果，不让整次搜索报错
-    let final: SearchResponse = { list: [], failures: [] };
-    await consumeNdjson<SearchStreamEvent>(res, (event) => {
-      if (event.type === 'source') {
-        onSource(event);
-      } else if (event.type === 'done') {
-        final = { list: event.list, failures: event.failures };
-      }
-    });
-    return final;
-  }
-
-export type { SearchResponse, SearchResultItem };
+export type { SearchResponse, SearchResultItem } from './types';

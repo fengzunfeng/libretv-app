@@ -2,7 +2,7 @@ import type { NextConfig } from 'next';
 import fs from 'node:fs';
 import path from 'node:path';
 
-/** 版本号以 package.json 为单一来源，构建时注入 process.env.APP_VERSION（/api/status 使用） */
+/** 版本号以 package.json 为单一来源，构建时注入 process.env.APP_VERSION */
 function readAppVersion(): string {
   try {
     const pkg = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')) as {
@@ -14,13 +14,18 @@ function readAppVersion(): string {
   }
 }
 
+/**
+ * 独立版（Standalone）：静态导出，全部前端逻辑打进 APK。
+ * - output: 'export'：所有页面预渲染为静态 HTML
+ * - assetPrefix: './'：静态资源使用相对路径，便于在 file:// 或本地 WebView 中加载
+ * - trailingSlash: true：链接统一带尾斜杠，本地加载更稳
+ */
 const nextConfig: NextConfig = {
-  // standalone 输出仅供 Docker 镜像构建使用（DOCKER_BUILD=1）；
-  // 本地 next start 在 standalone 模式下不受支持，故按环境切换
-  output: process.env.DOCKER_BUILD === '1' ? 'standalone' : undefined,
+  output: 'export',
+  assetPrefix: './',
+  trailingSlash: true,
   reactStrictMode: true,
   env: { APP_VERSION: readAppVersion() },
-  // 采集站/豆瓣等上游地址在运行时由用户配置，构建期无法枚举，关闭图片优化改用 <img>
   images: { unoptimized: true },
 };
 

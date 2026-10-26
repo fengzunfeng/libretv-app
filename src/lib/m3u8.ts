@@ -6,14 +6,20 @@
  * 从根本上修复旧版「重写分片丢失鉴权参数导致 401」的问题。
  */
 
-/** 点播代理地址（查询串形式，路径形式会被 EdgeOne 等网关的 URL 归一化破坏，见 proxy-handlers.ts） */
-export const PROXY_BASE = '/api/proxy?url=';
-/** 直播流代理地址（查询串形式） */
-export const LIVE_STREAM_BASE = '/api/live/stream?url=';
+/** 点播代理地址（查询串形式）—— 独立版：虚拟主机 libretv.local 由安卓壳拦截转发 */
+export const PROXY_BASE = 'https://libretv.local/api/proxy?url=';
+/** 直播流代理地址（查询串形式）—— 独立版：同上，安卓壳拦截转发 */
+export const LIVE_STREAM_BASE = 'https://libretv.local/api/live/stream?url=';
 
-/** URI 已是本站代理地址（新旧两种形式：/api/proxy/…、/api/proxy?url=…、/api/live/stream/…、/api/live/stream?url=…）时不再二次改写 */
+/** URI 已是本站代理地址（/api/proxy/…、/api/proxy?url=…、/api/live/stream/…、/api/live/stream?url=…、
+ *  以及独立版虚拟主机 libretv.local 形式）时不再二次改写 */
 export function isProxiedUri(uri: string): boolean {
-  return uri.startsWith('/api/proxy') || uri.startsWith('/api/live/stream');
+  return (
+    uri.startsWith('/api/proxy') ||
+    uri.startsWith('/api/live/stream') ||
+    uri.startsWith('https://libretv.local/api/proxy') ||
+    uri.startsWith('https://libretv.local/api/live/stream')
+  );
 }
 
 /**
